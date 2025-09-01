@@ -5,7 +5,7 @@ name = "alembic"
 version = "1.16.5"
 description = "A database migration tool for SQLAlchemy."
 optional = false
-requires-python = ">=3.11,<3.12"
+python-versions = ">=3.9"
 groups = ["main"]
 files = [
     {file = "alembic-1.16.5-py3-none-any.whl", hash = "sha256:e845dfe090c5ffa7b92593ae6687c5cb1a101e91fa53868497dbd79847f9dbe3"},
@@ -47,6 +47,7 @@ files = [
 [package.dependencies]
 idna = ">=2.8"
 sniffio = ">=1.1"
+typing_extensions = {version = ">=4.5", markers = "python_version < \"3.13\""}
 
 [package.extras]
 trio = ["trio (>=0.26.1)"]
@@ -1283,11 +1284,12 @@ version = "4.15.0"
 description = "Backported and Experimental Type Hints for Python 3.9+"
 optional = false
 python-versions = ">=3.9"
-groups = ["main"]
+groups = ["main", "dev"]
 files = [
     {file = "typing_extensions-4.15.0-py3-none-any.whl", hash = "sha256:f0fa19c6845758ab08074a0cfa8b7aecb71c999ca73d62883bc25cc018c4e548"},
     {file = "typing_extensions-4.15.0.tar.gz", hash = "sha256:0cea48d173cc12fa28ecabc3b837ea3cf6f38c6d1136f85cbaaf598984861466"},
 ]
+markers = {dev = "python_version == \"3.12\""}
 
 [[package]]
 name = "typing-inspection"
@@ -1358,5 +1360,5 @@ files = [
 
 [metadata]
 lock-version = "2.1"
-python-versions = ">=3.13,<3.14"
-content-hash = "5a1b1a652f3532dd1a786deab90e13ea02c5257bf648fcae5a35784f21dd6e3a"
+python-versions = ">=3.12,<3.14"
+content-hash = "7cc280325c7963c45ff724d2f4254eb6ee3b9dde27e31e7e617ca91c7b71d9e1"
