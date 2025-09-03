@@ -1,5 +1,5 @@
-# Use Python 3.11 on Debian Bullseye (slim = smallest variant)
-FROM python:3.11-slim-bullseye
+# Use Python 3.13 on Debian Bullseye (slim = smallest variant)
+FROM python:3.13-slim-bullseye
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -9,9 +9,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Install system dependencies
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
+        # for cloning repos / VCS
         git \
+        # for downloading scripts / installers
         curl \
+        # for compiling Python packages
         build-essential \
+        # PostgreSQL client libraries for psycopg2
         libpq-dev \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
@@ -29,18 +33,19 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock ./
 
 # Install dependencies (production by default)
+# Use build arg INSTALL_DEV=true to include dev dependencies
 ARG INSTALL_DEV=false
 RUN poetry config virtualenvs.create false \
     && if [ "$INSTALL_DEV" = "true" ]; then \
-         poetry install --with dev; \
+         poetry install --with dev --no-root; \
        else \
-         poetry install --no-dev --no-root; \
+         poetry install --without dev --no-root; \
        fi
 
-# Copy the rest of the app
+# Copy the rest of the app source
 COPY . .
 
-# Expose port
+# Expose ports for the app
 EXPOSE 8000
 
 # Command to start the application
