@@ -3,7 +3,7 @@ Placeholders for external service interactions.
 """
 
 from decimal import Decimal
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 
 # Catalog client

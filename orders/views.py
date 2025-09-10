@@ -4,8 +4,8 @@ from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny, IsAuthenticated
-from .models import Cart, CartItem, Order, OrderItem, OrderTracking
+from rest_framework.permissions import AllowAny
+from .models import Cart, Order, OrderItem, OrderTracking
 from .serializers import (
     ProductSearchResultSerializer,
     CartItemCreateSerializer,

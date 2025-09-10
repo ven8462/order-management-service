@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from .models import Cart, CartItem, Order, OrderItem, OrderTracking
-from decimal import Decimal
+from .models import Cart, CartItem, Order, OrderItem
 
 
 class ProductSearchResultSerializer(serializers.Serializer):
