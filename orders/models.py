@@ -1,5 +1,6 @@
 import uuid
 from decimal import Decimal
+
 from django.db import models
 from django.utils import timezone
 
@@ -10,7 +11,7 @@ class Cart(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def total_amount(self):
+    def total_amount(self) -> Decimal:
         return sum((item.price * item.quantity) for item in self.items.all()) or Decimal("0.00")
 
 
@@ -33,8 +34,16 @@ class Order(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user_id = models.UUIDField()
-    status = models.CharField(max_length=16, choices=Status.choices, default=Status.PENDING)
-    total_amount = models.DecimalField(max_digits=14, decimal_places=2, default=Decimal("0.00"))
+    status = models.CharField(
+        max_length=16,
+        choices=Status.choices,
+        default=Status.PENDING,
+    )
+    total_amount = models.DecimalField(
+        max_digits=14,
+        decimal_places=2,
+        default=Decimal("0.00"),
+    )
     currency = models.CharField(max_length=8, default="USD")
     address_id = models.CharField(max_length=128, blank=True, null=True)
     payment_method_id = models.CharField(max_length=128, blank=True, null=True)
