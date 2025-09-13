@@ -5,7 +5,7 @@ from unittest.mock import patch
 from rest_framework.test import APITestCase
 from rest_framework import status
 from django.urls import reverse
-from orders.models import Cart, Order  # adjust app name if not "shop"
+from orders.models import Order  # adjust app name if not "shop"
 
 
 class CartTests(APITestCase):
@@ -26,21 +26,32 @@ class CartTests(APITestCase):
 
 class OrderTests(APITestCase):
     @patch("orders.views.services.reserve_inventory", return_value=True)
-    @patch("orders.views.services.authorize_payment", return_value={"success": True, "transaction_id": "TX123"})
+    @patch(
+    "orders.views.services.authorize_payment",
+    return_value={"success": True, "transaction_id": "TX123"},)
     def test_create_order_success(self, mock_payment, mock_inventory):
         url = reverse("order-list")
         payload = {
             "user_id": str(uuid.uuid4()),
             "items": [
-               {"product_id": str(uuid.uuid4()), "quantity": 1, "price": "20.00", "subtotal": "20.00"},
-               {"product_id": str(uuid.uuid4()), "quantity": 2, "price": "15.00", "subtotal": "30.00"},
+                {
+                    "product_id": str(uuid.uuid4()),
+                    "quantity": 1,
+                    "price": "20.00",
+                    "subtotal": "20.00",
+                    },
+                    {
+                    "product_id": str(uuid.uuid4()),
+                    "quantity": 2,
+                    "price": "15.00",
+                    "subtotal": "30.00",
+                    },
             ],
             "address_id": "ADDR123",
             "payment_method_id": "PM123",
             "currency": "USD",
         }
         response = self.client.post(url, payload, format="json")
-        #print(response.data)
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Order.objects.count(), 1)
         order = Order.objects.first()
