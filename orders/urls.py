@@ -1,6 +1,7 @@
-from django.urls import path, include
+from django.urls import include, path
 from rest_framework.routers import DefaultRouter
-from .views import product_search, CartViewSet, OrderViewSet
+
+from .views import CartViewSet, OrderViewSet, product_search
 
 router = DefaultRouter()
 # cart -- a custom route for adding items

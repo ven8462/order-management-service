@@ -1,26 +1,28 @@
 from decimal import Decimal
+
 from django.db import transaction
 from django.shortcuts import get_object_or_404
-from rest_framework import viewsets, status
+from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
-from rest_framework.response import Response
 from rest_framework.permissions import AllowAny
+from rest_framework.request import Request
+from rest_framework.response import Response
 
+from . import services
 from .models import Cart, Order, OrderItem, OrderTracking
 from .serializers import (
-    ProductSearchResultSerializer,
     CartItemCreateSerializer,
     CartSerializer,
     OrderCreateSerializer,
     OrderReadSerializer,
     OrderStatusUpdateSerializer,
+    ProductSearchResultSerializer,
 )
-from . import services
 
 
 # Product search proxy
 @api_view(["GET"])
-def product_search(request):
+def product_search(request: Request) -> Response:
     q = request.GET.get("query", "")
     category = request.GET.get("category")
     limit = int(request.GET.get("limit", 10))
@@ -29,9 +31,7 @@ def product_search(request):
     res = services.product_search(q, category=category, limit=limit, page=page)
 
     serializer = ProductSearchResultSerializer(res["products"], many=True)
-    return Response(
-        {"products": serializer.data, "pagination": res["pagination"]}
-    )
+    return Response({"products": serializer.data, "pagination": res["pagination"]})
 
 
 class CartViewSet(viewsets.GenericViewSet):
@@ -39,18 +39,8 @@ class CartViewSet(viewsets.GenericViewSet):
     queryset = Cart.objects.all()
 
     @action(detail=False, methods=["post"])
-    def items(self, request):
-        """
-        POST /api/cart/items/
-        payload:
-        {
-          "cart": "<uuid>" (optional - if not provided, we create cart),
-          "user_id": "<uuid>",
-          "product_id": "<uuid>",
-          "quantity": 2,
-          "price": "60.00"
-        }
-        """
+    def items(self, request: Request) -> Response:
+        """POST /api/cart/items/."""
         data = request.data.copy()
         cart_id = data.get("cart")
 
@@ -76,15 +66,13 @@ class OrderViewSet(viewsets.GenericViewSet):
     permission_classes = [AllowAny]
     queryset = Order.objects.all()
 
-    def retrieve(self, request, pk=None):
+    def retrieve(self, request: Request, pk: str | None = None) -> Response:
         order = get_object_or_404(Order, pk=pk)
         serializer = OrderReadSerializer(order)
         return Response(serializer.data)
 
-    def create(self, request):
-        """
-        POST /api/orders/
-        """
+    def create(self, request: Request) -> Response:
+        """POST /api/orders/."""
         serializer = OrderCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -107,17 +95,14 @@ class OrderViewSet(viewsets.GenericViewSet):
                     return Response(
                         {
                             "detail": (
-                                "Inventory reservation failed for product "
-                                f"{it['product_id']}"
-                            )
+                                f"Inventory reservation failed for product {it['product_id']}"
+                            ),
                         },
                         status=status.HTTP_409_CONFLICT,
                     )
 
             # 2. Authorize payment
-            total = sum(
-                Decimal(str(it["price"])) * int(it["quantity"]) for it in items
-            )
+            total = sum(Decimal(str(it["price"])) * int(it["quantity"]) for it in items)
             pay_resp = services.authorize_payment(
                 user_id,
                 payment_method_id,
@@ -166,11 +151,8 @@ class OrderViewSet(viewsets.GenericViewSet):
         return Response(read.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["put"])
-    def status(self, request, pk=None):
-        """
-        PUT /api/orders/{order_id}/status/
-        payload: { "new_status": "CONFIRMED" }
-        """
+    def status(self, request: Request, pk: str | None = None) -> Response:
+        """PUT /api/orders/{order_id}/status/."""
         order = get_object_or_404(Order, pk=pk)
         serializer = OrderStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -192,11 +174,7 @@ class OrderViewSet(viewsets.GenericViewSet):
         }
         if new_status not in allowed.get(order.status, set()):
             return Response(
-                {
-                    "detail": (
-                        f"Illegal transition {order.status} → {new_status}"
-                    )
-                },
+                {"detail": f"Illegal transition {order.status} → {new_status}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -210,7 +188,7 @@ class OrderViewSet(viewsets.GenericViewSet):
         return Response(OrderReadSerializer(order).data)
 
     @action(detail=True, methods=["get"])
-    def tracking(self, request, pk=None):
+    def tracking(self, request: Request, pk: str | None = None) -> Response:
         order = get_object_or_404(Order, pk=pk)
         events = order.tracking_events.order_by("timestamp").all()
         data = [
@@ -226,5 +204,5 @@ class OrderViewSet(viewsets.GenericViewSet):
                 "orderId": str(order.id),
                 "currentStatus": order.status,
                 "trackingEvents": data,
-            }
+            },
         )

@@ -1,9 +1,14 @@
+from decimal import Decimal
+from typing import Any
+
 from rest_framework import serializers
+
 from .models import Cart, CartItem, Order, OrderItem
 
 
 class ProductSearchResultSerializer(serializers.Serializer):
-    productId = serializers.CharField()
+    # Keep Python snake_case, expose as mixedCase in JSON
+    product_id = serializers.CharField(source="productId")
     name = serializers.CharField()
     price = serializers.DecimalField(max_digits=12, decimal_places=2)
     currency = serializers.CharField()
@@ -16,9 +21,10 @@ class CartItemCreateSerializer(serializers.ModelSerializer):
         fields = ["id", "cart", "product_id", "quantity", "price"]
         read_only_fields = ["id"]
 
-    def validate_quantity(self, v):
+    def validate_quantity(self, v: int) -> int:
         if v < 1:
-            raise serializers.ValidationError("quantity must be >= 1")
+            msg = "quantity must be >= 1"
+            raise serializers.ValidationError(msg)
         return v
 
 
@@ -30,7 +36,7 @@ class CartSerializer(serializers.ModelSerializer):
         model = Cart
         fields = ["id", "user_id", "created_at", "updated_at", "items", "total"]
 
-    def get_total(self, obj):
+    def get_total(self, obj: Cart) -> Decimal:
         return obj.total_amount()
 
 
@@ -48,9 +54,10 @@ class OrderCreateSerializer(serializers.Serializer):
     currency = serializers.CharField(default="USD")
     idempotency_key = serializers.CharField(required=False, allow_null=True)
 
-    def validate_items(self, items):
+    def validate_items(self, items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not items:
-            raise serializers.ValidationError("At least one item is required.")
+            msg = "At least one item is required."
+            raise serializers.ValidationError(msg)
         return items
 
 
@@ -60,12 +67,30 @@ class OrderReadSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Order
-        fields = ["id", "user_id", "status", "total_amount", "currency", "address_id",
-                  "payment_method_id", "payment_transaction_id", "created_at", "items", "tracking_events"]
+        fields = [
+            "id",
+            "user_id",
+            "status",
+            "total_amount",
+            "currency",
+            "address_id",
+            "payment_method_id",
+            "payment_transaction_id",
+            "created_at",
+            "items",
+            "tracking_events",
+        ]
 
-    def get_tracking_events(self, order):
+    def get_tracking_events(self, order: Order) -> list[dict[str, Any]]:
         events = order.tracking_events.order_by("timestamp").all()
-        return [{"status": e.status, "timestamp": e.timestamp, "location": e.location} for e in events]
+        return [
+            {
+                "status": e.status,
+                "timestamp": e.timestamp,
+                "location": e.location,
+            }
+            for e in events
+        ]
 
 
 class OrderStatusUpdateSerializer(serializers.Serializer):
