@@ -27,7 +27,10 @@ class CartTests(APITestCase):
 
 
 class OrderTests(APITestCase):
-    @patch("orders.services.external_apis.reserve_inventory", return_value={"reservationId": "RES123"})
+    @patch(
+        "orders.services.external_apis.reserve_inventory",
+        return_value={"reservationId": "RES123"},
+    )
     @patch(
         "orders.services.external_apis.authorize_payment",
         return_value={"success": True, "transaction_id": "TX123"},
@@ -41,8 +44,18 @@ class OrderTests(APITestCase):
         payload = {
             "user_id": str(uuid.uuid4()),
             "items": [
-                {"product_id": str(uuid.uuid4()), "quantity": 1, "price": "20.00", "subtotal": "20.00"},
-                {"product_id": str(uuid.uuid4()), "quantity": 2, "price": "15.00", "subtotal": "30.00"},
+                {
+                    "product_id": str(uuid.uuid4()),
+                    "quantity": 1,
+                    "price": "20.00",
+                    "subtotal": "20.00",
+                },
+                {
+                    "product_id": str(uuid.uuid4()),
+                    "quantity": 2,
+                    "price": "15.00",
+                    "subtotal": "30.00",
+                },
             ],
             "address_id": "ADDR123",
             "payment_method_id": "PM123",
