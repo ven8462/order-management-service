@@ -749,6 +749,21 @@ files = [
 ]
 
 [[package]]
+name = "pybreaker"
+version = "1.4.0"
+description = "Python implementation of the Circuit Breaker pattern"
+optional = false
+python-versions = ">=3.9"
+groups = ["main"]
+files = [
+    {file = "pybreaker-1.4.0-py3-none-any.whl", hash = "sha256:98b3324575293ba5e62be0098041481eda603a934c4d59857bb724ecfbea4a4c"},
+    {file = "pybreaker-1.4.0.tar.gz", hash = "sha256:82910927d504aca596b5266964eaeabf41361aff30feb31d568d3e530fcc6f2b"},
+]
+
+[package.extras]
+test = ["fakeredis", "mock", "pytest", "redis", "tornado", "types-mock", "types-redis"]
+
+[[package]]
 name = "pydantic"
 version = "2.11.7"
 description = "Data validation using Python type hints"
@@ -1460,4 +1475,4 @@ files = [
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<3.14"
-content-hash = "3c3c1642517bf8e1972bd3bc1c648689999d9fc88a36cb15fe782ce2f95d0b26"
+content-hash = "448e3fbc2f030a58261d9137e8131ab79faa6278bdff16df3797865e1ec5a21a"
