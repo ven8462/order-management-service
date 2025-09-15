@@ -9,12 +9,11 @@ from orders.utils.circuit_breaker import breaker_factory
 
 logger = logging.getLogger(__name__)
 
-# HTTP status codes used for business logic
+# HTTP status codes
 HTTP_CONFLICT = 409
 HTTP_PAYMENT_REQUIRED = 402
 
 
-# Define custom exceptions for clear error handling in the view
 class ServiceUnavailableError(Exception):
     pass
 
