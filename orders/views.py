@@ -19,6 +19,8 @@ from .serializers import (
     ProductSearchResultSerializer,
 )
 
+from kafka_utils.producer import publish_event
+
 
 # Product search proxy
 @api_view(["GET"])
@@ -72,7 +74,7 @@ class OrderViewSet(viewsets.GenericViewSet):
         return Response(serializer.data)
 
     def create(self, request: Request) -> Response:
-        """POST /api/orders/."""
+        """POST /api/orders/ """
         serializer = OrderCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
@@ -84,71 +86,64 @@ class OrderViewSet(viewsets.GenericViewSet):
         currency = data.get("currency", "USD")
         idempotency_key = data.get("idempotency_key")
 
-        with transaction.atomic():
-            # 1. Reserve inventory
-            for it in items:
-                ok = services.reserve_inventory(
-                    str(it["product_id"]),
-                    it["quantity"],
-                )
-                if not ok:
-                    return Response(
-                        {
-                            "detail": (
-                                f"Inventory reservation failed for product {it['product_id']}"
-                            ),
-                        },
-                        status=status.HTTP_409_CONFLICT,
-                    )
+        # Calculate total amount
+        total = sum(Decimal(str(it["price"])) * int(it["quantity"]) for it in items)
 
-            # 2. Authorize payment
-            total = sum(Decimal(str(it["price"])) * int(it["quantity"]) for it in items)
-            pay_resp = services.authorize_payment(
-                user_id,
-                payment_method_id,
-                total,
-                currency,
-                idempotency_key,
-            )
-            if not pay_resp.get("success"):
-                return Response(
-                    {"detail": "Payment authorization failed"},
-                    status=status.HTTP_402_PAYMENT_REQUIRED,
-                )
+        # Create the order
+        order = Order.objects.create(
+            user_id=user_id,
+            status=Order.Status.PENDING,
+            total_amount=total,
+            currency=currency,
+            address_id=address_id,
+            payment_method_id=payment_method_id,
+        )
 
-            # 3. Persist order
-            order = Order.objects.create(
-                user_id=user_id,
-                status=Order.Status.PENDING,
-                total_amount=total,
-                currency=currency,
-                address_id=address_id,
-                payment_method_id=payment_method_id,
-                payment_transaction_id=pay_resp.get("transaction_id"),
-            )
-
-            order_items = []
-            for it in items:
-                subtotal = Decimal(str(it["price"])) * int(it["quantity"])
-                oi = OrderItem(
-                    order=order,
-                    product_id=it["product_id"],
-                    quantity=it["quantity"],
-                    price=it["price"],
-                    subtotal=subtotal,
-                )
-                order_items.append(oi)
-            OrderItem.objects.bulk_create(order_items)
-
-            # Initial tracking event
-            OrderTracking.objects.create(
+        # Create order items
+        order_items = [
+            OrderItem(
                 order=order,
-                status=Order.Status.PENDING,
-                location="Order Placed",
+                product_id=it["product_id"],
+                quantity=it["quantity"],
+                price=it["price"],
+                subtotal=Decimal(str(it["price"])) * int(it["quantity"]),
             )
+            for it in items
+        ]
+        OrderItem.objects.bulk_create(order_items)
 
-        read = OrderReadSerializer(order)
-        return Response(read.data, status=status.HTTP_201_CREATED)
+        # Initial tracking event
+        OrderTracking.objects.create(
+            order=order,
+            status=Order.Status.PENDING,
+            location="Order Created",
+        )
+
+        # Emit OrderCreated event for downstream services
+        publish_event(
+            "order-created",
+            {
+                "order_id": str(order.id),
+                "user_id": user_id,
+                "items": [
+                    {
+                        "product_id": str(it["product_id"]),
+                        "quantity": it["quantity"],
+                        "price": str(it["price"]),
+                    }
+                    for it in items
+                ],
+                "total_amount": str(total),
+                "currency": currency,
+                "address_id": address_id,
+                "payment_method_id": payment_method_id,
+                "idempotency_key": idempotency_key,
+            },
+        )
+
+        return Response(OrderReadSerializer(order).data, status=status.HTTP_201_CREATED)
+
+
 
     @action(detail=True, methods=["put"])
     def status(self, request: Request, pk: str | None = None) -> Response:
@@ -163,6 +158,8 @@ class OrderViewSet(viewsets.GenericViewSet):
             Order.Status.PENDING: {
                 Order.Status.CONFIRMED,
                 Order.Status.CANCELLED,
+                Order.Status.PAID,
+
             },
             Order.Status.CONFIRMED: {
                 Order.Status.SHIPPED,

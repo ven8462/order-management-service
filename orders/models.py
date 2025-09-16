@@ -68,3 +68,16 @@ class OrderTracking(models.Model):
     status = models.CharField(max_length=16, choices=Order.Status.choices)
     timestamp = models.DateTimeField(default=timezone.now)
     location = models.CharField(max_length=255, blank=True, null=True)
+
+
+class OrderSaga(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    order_id = models.UUIDField(unique=True, db_index=True)
+
+    user_status = models.CharField(max_length=64, null=True, blank=True)
+    inventory_status = models.CharField(max_length=64, null=True, blank=True)
+    payment_status = models.CharField(max_length=64, null=True, blank=True)
+
+    outcome = models.CharField(max_length=32, null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
