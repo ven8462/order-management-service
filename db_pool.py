@@ -1,6 +1,5 @@
 # db_pool.py
 import psycopg2
-from psycopg2 import pool
 import os
 
 # Database credentials from environment variables
