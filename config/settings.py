@@ -9,6 +9,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import os
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -123,3 +124,11 @@ STATIC_URL = "static/"
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "auth.User"
+CB_PAYMENT_FAIL_MAX = int(os.environ.get("CB_PAYMENT_FAIL_MAX", 5))
+CB_PAYMENT_RESET_TIMEOUT = int(os.environ.get("CB_PAYMENT_RESET_TIMEOUT", 30))
+CB_PAYMENT_CALL_TIMEOUT = float(os.environ.get("CB_PAYMENT_CALL_TIMEOUT", 4.0))
+
+# --- Inventory Service Breaker Config ---
+CB_INVENTORY_FAIL_MAX = int(os.environ.get("CB_INVENTORY_FAIL_MAX", 3))
+CB_INVENTORY_RESET_TIMEOUT = int(os.environ.get("CB_INVENTORY_RESET_TIMEOUT", 20))
+CB_INVENTORY_CALL_TIMEOUT = float(os.environ.get("CB_INVENTORY_CALL_TIMEOUT", 2.0))

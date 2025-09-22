@@ -27,9 +27,12 @@ class CartTests(APITestCase):
 
 
 class OrderTests(APITestCase):
-    @patch("orders.views.services.reserve_inventory", return_value=True)
     @patch(
-        "orders.views.services.authorize_payment",
+        "orders.services.external_apis.reserve_inventory",
+        return_value={"reservationId": "RES123"},
+    )
+    @patch(
+        "orders.services.external_apis.authorize_payment",
         return_value={"success": True, "transaction_id": "TX123"},
     )
     def test_create_order_success(

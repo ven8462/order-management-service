@@ -1,6 +1,5 @@
-from decimal import Decimal
+import logging
 
-from django.db import transaction
 from django.shortcuts import get_object_or_404
 from rest_framework import status, viewsets
 from rest_framework.decorators import action, api_view
@@ -9,7 +8,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 
 from . import services
-from .models import Cart, Order, OrderItem, OrderTracking
+from .models import Cart, Order, OrderTracking
 from .serializers import (
     CartItemCreateSerializer,
     CartSerializer,
@@ -18,9 +17,16 @@ from .serializers import (
     OrderStatusUpdateSerializer,
     ProductSearchResultSerializer,
 )
+from .services import order_processing
+from .services.external_apis import (
+    InventoryReservationError,
+    PaymentAuthorizationError,
+    ServiceUnavailableError,
+)
+
+logger = logging.getLogger(__name__)
 
 
-# Product search proxy
 @api_view(["GET"])
 def product_search(request: Request) -> Response:
     q = request.GET.get("query", "")
@@ -35,7 +41,7 @@ def product_search(request: Request) -> Response:
 
 
 class CartViewSet(viewsets.GenericViewSet):
-    permission_classes = [AllowAny]  # adjust as needed
+    permission_classes = [AllowAny]
     queryset = Cart.objects.all()
 
     @action(detail=False, methods=["post"])
@@ -77,97 +83,43 @@ class OrderViewSet(viewsets.GenericViewSet):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
 
-        user_id = str(data["user_id"])
-        items = data["items"]
-        address_id = data["address_id"]
-        payment_method_id = data["payment_method_id"]
-        currency = data.get("currency", "USD")
-        idempotency_key = data.get("idempotency_key")
-
-        with transaction.atomic():
-            # 1. Reserve inventory
-            for it in items:
-                ok = services.reserve_inventory(
-                    str(it["product_id"]),
-                    it["quantity"],
-                )
-                if not ok:
-                    return Response(
-                        {
-                            "detail": (
-                                f"Inventory reservation failed for product {it['product_id']}"
-                            ),
-                        },
-                        status=status.HTTP_409_CONFLICT,
-                    )
-
-            # 2. Authorize payment
-            total = sum(Decimal(str(it["price"])) * int(it["quantity"]) for it in items)
-            pay_resp = services.authorize_payment(
-                user_id,
-                payment_method_id,
-                total,
-                currency,
-                idempotency_key,
+        try:
+            order = order_processing.create_order_saga(
+                user_id=str(data["user_id"]),
+                items=data["items"],
+                address_id=data["address_id"],
+                payment_method_id=data["payment_method_id"],
+                currency=data.get("currency", "USD"),
+                idempotency_key=data.get("idempotency_key"),
             )
-            if not pay_resp.get("success"):
-                return Response(
-                    {"detail": "Payment authorization failed"},
-                    status=status.HTTP_402_PAYMENT_REQUIRED,
-                )
+            read_serializer = OrderReadSerializer(order)
+            return Response(read_serializer.data, status=status.HTTP_201_CREATED)
 
-            # 3. Persist order
-            order = Order.objects.create(
-                user_id=user_id,
-                status=Order.Status.PENDING,
-                total_amount=total,
-                currency=currency,
-                address_id=address_id,
-                payment_method_id=payment_method_id,
-                payment_transaction_id=pay_resp.get("transaction_id"),
+        except InventoryReservationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_409_CONFLICT)
+
+        except PaymentAuthorizationError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_402_PAYMENT_REQUIRED)
+
+        except ServiceUnavailableError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+
+        except Exception:
+            logger.exception("An unexpected error occurred during order creation.")
+            return Response(
+                {"detail": "An internal server error occurred."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
-
-            order_items = []
-            for it in items:
-                subtotal = Decimal(str(it["price"])) * int(it["quantity"])
-                oi = OrderItem(
-                    order=order,
-                    product_id=it["product_id"],
-                    quantity=it["quantity"],
-                    price=it["price"],
-                    subtotal=subtotal,
-                )
-                order_items.append(oi)
-            OrderItem.objects.bulk_create(order_items)
-
-            # Initial tracking event
-            OrderTracking.objects.create(
-                order=order,
-                status=Order.Status.PENDING,
-                location="Order Placed",
-            )
-
-        read = OrderReadSerializer(order)
-        return Response(read.data, status=status.HTTP_201_CREATED)
 
     @action(detail=True, methods=["put"])
     def status(self, request: Request, pk: str | None = None) -> Response:
-        """PUT /api/orders/{order_id}/status/."""
         order = get_object_or_404(Order, pk=pk)
         serializer = OrderStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         new_status = serializer.validated_data["new_status"]
-
-        # Allowed transitions
         allowed = {
-            Order.Status.PENDING: {
-                Order.Status.CONFIRMED,
-                Order.Status.CANCELLED,
-            },
-            Order.Status.CONFIRMED: {
-                Order.Status.SHIPPED,
-                Order.Status.CANCELLED,
-            },
+            Order.Status.PENDING: {Order.Status.CONFIRMED, Order.Status.CANCELLED},
+            Order.Status.CONFIRMED: {Order.Status.SHIPPED, Order.Status.CANCELLED},
             Order.Status.SHIPPED: {Order.Status.DELIVERED},
             Order.Status.DELIVERED: set(),
             Order.Status.CANCELLED: set(),
@@ -177,7 +129,6 @@ class OrderViewSet(viewsets.GenericViewSet):
                 {"detail": f"Illegal transition {order.status} → {new_status}"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-
         order.status = new_status
         order.save(update_fields=["status", "updated_at"])
         OrderTracking.objects.create(
@@ -192,17 +143,8 @@ class OrderViewSet(viewsets.GenericViewSet):
         order = get_object_or_404(Order, pk=pk)
         events = order.tracking_events.order_by("timestamp").all()
         data = [
-            {
-                "status": e.status,
-                "timestamp": e.timestamp,
-                "location": e.location,
-            }
-            for e in events
+            {"status": e.status, "timestamp": e.timestamp, "location": e.location} for e in events
         ]
         return Response(
-            {
-                "orderId": str(order.id),
-                "currentStatus": order.status,
-                "trackingEvents": data,
-            },
+            {"orderId": str(order.id), "currentStatus": order.status, "trackingEvents": data},
         )
