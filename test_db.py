@@ -1,7 +1,9 @@
 from sqlalchemy import create_engine
 
 # Connection string
-engine = create_engine('postgresql+psycopg2://postgres:Ord3rM%40n%40g3r%243rv1c3@localhost/order_management_db')
+engine = create_engine(
+    "postgresql+psycopg2://postgres:Ord3rM%40n%40g3r%243rv1c3@localhost/order_management_db"
+)
 
 try:
     connection = engine.connect()
