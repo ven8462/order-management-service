@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, func, Numeric, CheckConstraint, Index
+from sqlalchemy import Column, Integer, String,  DateTime, func, Numeric, CheckConstraint, Index
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()
@@ -28,3 +28,5 @@ class Order(Base):
             f"total_amount={self.total_amount}, status='{self.status}', "
             f"created_at={self.created_at})>"
         )
+        
+        

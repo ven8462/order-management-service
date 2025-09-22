@@ -1,5 +1,4 @@
 from db_config import engine, Base
-from models import Order
 
 def init_db():
     # This will create all tables in the database
@@ -8,3 +7,6 @@ def init_db():
 
 if __name__ == "__main__":
     init_db()
+    
+    
+    
