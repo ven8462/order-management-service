@@ -3,7 +3,7 @@ import random
 import requests
 from retrying import retry
 
-# A simple decorator to define a retry policy
+#  define a retry policy
 @retry(wait_exponential_multiplier=1000, wait_exponential_max=10000, stop_max_attempt_number=5)
 def call_payment_service():
     """
@@ -19,7 +19,7 @@ def call_payment_service():
     print("Payment service call succeeded!")
     return {"status": "payment_successful"}
 
-# Example of how to use this in your Order Service logic
+#  Order Service logic
 if __name__ == "__main__":
     try:
         print("\nStarting payment processing...")
