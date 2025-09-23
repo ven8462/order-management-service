@@ -1,13 +1,17 @@
 # src/order_service.py
 
+
 class CircuitBreakerError(Exception):
     """Custom exception for circuit breaker state."""
+
     pass
+
 
 def call_inventory_service(items):
     """Simulates a call to an external inventory service."""
     # Placeholder implementation
     return {"status": "reserved"}
+
 
 def call_payment_service(order_data):
     """Simulates a call to an external payment service."""

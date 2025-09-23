@@ -17,9 +17,7 @@ def call_payment_service():
     print("Attempting to call Payment Service...")
     # Simulate a network error or a service being down temporarily
     if random.random() < 0.7:  # 70% chance of failure
-        raise requests.exceptions.RequestException(
-            "Payment service is temporarily unavailable."
-        )
+        raise requests.exceptions.RequestException("Payment service is temporarily unavailable.")
     print("Payment service call succeeded!")
     return {"status": "payment_successful"}
 
