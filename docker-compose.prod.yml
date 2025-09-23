@@ -1,23 +1,44 @@
-version: "3.9"
 services:
   app:
-    image: ghcr.io/my-org/order-service:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        INSTALL_DEV: "false"
+    image: my-org/order-service:prod
     environment:
       - ENV=prod
-      - DATABASE_URL=postgresql://postgres:${POSTGRES_PASSWORD}@db:5432/order_db
-    ports:
-      - "8000:8000"
+      - DATABASE_URL=postgresql://valary:password@db:5432/order_management_service
+      - KAFKA_BROKER_URL=kafka:9092
     depends_on:
       - db
+      - kafka
+    command: >
+      poetry run gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 4
 
   db:
     image: postgres:15-bullseye
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-      POSTGRES_DB: order_db
+      POSTGRES_USER: valary
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: order_management_service
     volumes:
-      - prod_db_data:/var/lib/postgresql/data
+      - db_data:/var/lib/postgresql/data
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.6.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  kafka:
+    image: confluentinc/cp-kafka:7.6.1
+    depends_on:
+      - zookeeper
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
 volumes:
-  prod_db_data:
+  db_data:

@@ -10,6 +10,9 @@ __pycache__/
 venv/
 .env/
 .venv/
+.env.dev
+.env.test
+.env
 
 # Distribution / packaging
 build/
