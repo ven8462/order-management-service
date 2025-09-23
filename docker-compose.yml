@@ -1,0 +1,63 @@
+# File: docker-compose.yml
+
+version: "3.9"
+
+services:
+  # The PostgreSQL Database (no changes here)
+  postgres:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_db_data:/var/lib/postgresql/data/
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTG-RES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Zookeeper (no changes here)
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.0.1
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+
+  # The Kafka Message Broker (no changes here)
+  kafka:
+    image: confluentinc/cp-kafka:7.0.1
+    depends_on:
+      - zookeeper
+    ports:
+      - "9092:9092"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  # Your Order Management Service --- THIS SECTION IS CORRECTED ---
+  order_service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: order_service
+    image: order-management-service-dev
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./order_service:/app/order_service
+    env_file:
+      - .env
+    depends_on:
+      postgres:
+        condition: service_healthy 
+      kafka:
+        condition: service_started 
+
+volumes:
+  postgres_db_data:
