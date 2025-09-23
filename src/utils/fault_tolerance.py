@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def fault_tolerant(retries=3, wait_time=2, retry_on_status_codes=None):
     if retry_on_status_codes is None:
         retry_on_status_codes = [502, 503, 504]
-    
+
     def decorator(func):
         # Apply the Circuit Breaker from your existing factory
         breaker_func = CircuitBreakerFactory.create_breaker_decorator(func)
@@ -30,6 +30,6 @@ def fault_tolerant(retries=3, wait_time=2, retry_on_status_codes=None):
         )
         def wrapper(*args, **kwargs):
             return breaker_func(*args, **kwargs)
-        
+
         return wrapper
     return decorator
