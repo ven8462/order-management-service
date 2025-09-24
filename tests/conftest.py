@@ -1,18 +1,16 @@
+from collections.abc import Iterator
 from unittest.mock import MagicMock
 
 import pytest
-from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
 from order_service.database import get_db
 from order_service.main import app
 
-load_dotenv(dotenv_path=".env.test")
-
 
 @pytest.fixture(scope="session", autouse=True)
-def override_get_db():
-    def _get_db_override():
+def override_get_db() -> Iterator[None]:
+    def _get_db_override() -> Iterator[None]:
         yield MagicMock()
 
     app.dependency_overrides[get_db] = _get_db_override
@@ -21,5 +19,5 @@ def override_get_db():
 
 
 @pytest.fixture
-def client():
+def client() -> TestClient:
     return TestClient(app)
