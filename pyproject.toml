@@ -1,47 +1,49 @@
 [tool.poetry]
-name = "order-service"
+name = "order-management-service"
 version = "0.1.0"
-description = "Order management service built with FastAPI"
+description = "Order management service built with FastAPI, Kafka, and SQLAlchemy."
 authors = ["Your Team <team@example.com>"]
 readme = "README.md"
-package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.14"
-fastapi = ">=0.115.2,<0.116.0"
-uvicorn = ">=0.32.0,<0.33.0"
-sqlmodel = ">=0.0.22,<0.0.23"
-psycopg2-binary = ">=2.9.9,<3.0.0"
-sqlalchemy = ">=2.0.31,<3.0.0"
-alembic = ">=1.13.2,<2.0.0" 
-python-dotenv = ">=1.0.1,<2.0.0"
-redis = ">=5.2.1,<6.0.0"
-rq = ">=2.1.0,<3.0.0"
-pydantic = ">=2.7.4,<3.0.0"
-django = "^5.2.6"
-djangorestframework = "^3.16.1"
-pybreaker = "^1.4.0"
-requests = "^2.32.5"
-drf-yasg = "^1.21.10"
-prometheus-client = "^0.23.1"
+
+
+# Core Application Stack
+fastapi = ">=0.110.0"
+uvicorn = {extras = ["standard"], version = ">=0.23.2"}
+sqlalchemy = ">=2.0.21"
+psycopg2-binary = ">=2.9.7"
+
+# Asynchronous Communication
+confluent-kafka = ">=2.2.0"
+
+# Production Readiness & Monitoring
+pydantic-settings = ">=2.0.0"
+pybreaker = ">=0.6.0"
+prometheus-client = ">=0.17.1"
+httpx = ">=0.27.0"  # MOVED HERE: This is a main application dependency
 
 [tool.poetry.group.dev.dependencies]
+# Code Quality & Linting
 ruff = "^0.9.0"
-pytest = "^8.0.0"
-pytest-asyncio = ">=0.25.3,<0.26.0"
-pytest-cov = ">=6.0.0,<7.0.0"
-pytest-mock = ">=3.14.0,<4.0.0"
 pre-commit = "^3.7.1"
-vulture = "^2.14"
-autoflake = "^2.3.1"
-coverage = "^7.10.5"
-httpx = "^0.27.2"
-pytest-django = "^4.11.1"
 
+
+# Testing Framework & Plugins
+pytest = "^8.0.0"
+pytest-asyncio = ">=0.25.3"
+pytest-cov = ">=6.0.0"
+pytest-mock = ">=3.14.0"
+
+# Database Migrations
+alembic = ">=1.13.0"
+
+
+# --- Project Configurations ---
 [tool.ruff]
 line-length = 99
 target-version = "py312"
-exclude = []
 
 [tool.ruff.lint]
 select = ["B", "C", "E", "F", "W", "B9"]
@@ -52,7 +54,7 @@ unfixable = ["B"]
 max-doc-length = 99
 
 [build-system]
-requires = ["poetry-core>=2.0.0,<3.0.0"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]

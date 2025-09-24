@@ -1,10 +1,9 @@
 # ---- Stage 1: The Builder ----
-# This stage installs dependencies and builds our virtual environment.
-FROM python:3.9-slim as builder
+# CORRECTED: Use Python 3.12 to match your project's requirements
+FROM python:3.12-slim as builder
 
 # Set environment variables for Poetry
 ENV POETRY_HOME="/opt/poetry" \
-    POETRY_VERSION=1.7.1 \
     POETRY_VIRTUALENVS_IN_PROJECT=true
 
 # Install Poetry
@@ -18,24 +17,23 @@ ENV PATH="$POETRY_HOME/bin:$PATH"
 # Set the working directory
 WORKDIR /app
 
-# Copy only the files needed for dependency installation to leverage Docker cache
+# Copy dependency files
 COPY poetry.lock pyproject.toml ./
 
-# Install project dependencies into a local .venv directory
-# --no-dev ensures packages like pytest are not included
-RUN poetry install --no-interaction --no-ansi --no-dev
+# Install only the main dependencies (no dev packages)
+RUN poetry install --no-interaction --no-ansi --only main --no-root
 
 
 # ---- Stage 2: The Final Image ----
 # This stage builds the lean, production-ready image.
-FROM python:3.9-slim
+# CORRECTED: Also use Python 3.12 for the final runtime
+FROM python:3.12-slim
 
 # Set environment variables for Python
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
-# Install only the necessary runtime dependencies
-# 'libpq5' is the runtime library for PostgreSQL, unlike the bulky 'libpq-dev'
+# Install only the necessary runtime library for PostgreSQL
 RUN apt-get update \
     && apt-get install -y libpq5 \
     && apt-get clean \
@@ -45,7 +43,6 @@ RUN apt-get update \
 WORKDIR /app
 
 # Copy the virtual environment from the builder stage
-# This is the key step: we get all the Python packages without the build tools
 COPY --from=builder /app/.venv ./.venv
 
 # Copy the application source code
@@ -58,5 +55,4 @@ ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8000
 
 # Command to run the application
-# **IMPORTANT**: Ensure "order_service.main:app" matches your file structure and FastAPI app variable name.
 CMD ["uvicorn", "order_service.main:app", "--host", "0.0.0.0", "--port", "8000"]
