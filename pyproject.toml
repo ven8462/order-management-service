@@ -41,6 +41,7 @@ alembic = ">=1.13.0"
 
 
 # --- Project Configurations ---
+pytest-dotenv = "^0.5.2"
 [tool.ruff]
 line-length = 99
 target-version = "py312"

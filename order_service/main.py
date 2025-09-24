@@ -11,8 +11,6 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 
-models.Base.metadata.create_all(bind=engine)
-
 app = FastAPI(
     title="Order Management Service",
     description="Manages orders, carts, and provides monitoring endpoints.",
@@ -21,6 +19,8 @@ app = FastAPI(
 
 @app.on_event("startup")
 def on_startup() -> None:
+    models.Base.metadata.create_all(bind=engine)
+
     consumer.start_consumer_thread()
 
 
@@ -28,8 +28,6 @@ app.include_router(api.order_router)
 app.include_router(api.cart_router)
 app.include_router(api.monitoring_router)
 
+
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)
-
-logger = logging.getLogger(__name__)
-logger.info("Application setup complete. API is ready.")
