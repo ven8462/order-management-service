@@ -4,11 +4,10 @@ import pytest
 from dotenv import load_dotenv
 from fastapi.testclient import TestClient
 
-load_dotenv(dotenv_path=".env.test")
-
-
 from order_service.database import get_db
 from order_service.main import app
+
+load_dotenv(dotenv_path=".env.test")
 
 
 @pytest.fixture(scope="session", autouse=True)
