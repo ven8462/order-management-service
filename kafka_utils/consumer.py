@@ -12,12 +12,12 @@ import threading
 from confluent_kafka import Consumer, KafkaException
 from sqlalchemy.orm.session import Session as SessionType
 
-from . import crud
-from .config import settings
-from .database import SessionLocal
-from .models import OrderStatusEnum
+from order_service import crud
+from order_service.config import settings
+from order_service.database import SessionLocal
+from order_service.models import OrderStatusEnum
 # We use the same producer to send messages to the DLQ or for compensation events
-from .producer import publish_event
+from kafka_utils.producer import publish_event
 from prometheus_client import Counter
 
 # --- Prometheus Metrics ---
@@ -34,7 +34,7 @@ EVENTS_PROCESSING_FAILURES_TOTAL = Counter(
 EVENTS_SENT_TO_DLQ_TOTAL = Counter(
     "order_service_events_sent_to_dlq_total",
     "Total number of events sent to the Dead-Letter Queue",
-    ["topic"]
+    ["topic", "reason"]
 )
 
 logger = logging.getLogger(__name__)
@@ -42,27 +42,27 @@ logger = logging.getLogger(__name__)
 # --- Saga Logic Handlers ---
 
 def process_payment_successful(db: SessionType, event_data: dict):
-    order_id = event_data["orderId"]
+    order_id = event_data["order_id"]
     crud.update_order_status(db, order_id, OrderStatusEnum.INVENTORY_RESERVING)
     # Next step in the saga: request inventory reservation
-    publish_event("reserve_inventory_request", {"orderId": order_id, "items": event_data["items"]})
+    publish_event("reserve_inventory", {"order_id": order_id, "items": event_data["items"]})
 
 def process_inventory_reserved(db: SessionType, event_data: dict):
-    order_id = event_data["orderId"]
+    order_id = event_data["order_id"]
     crud.update_order_status(db, order_id, OrderStatusEnum.CONFIRMED)
     # Final step: notify other services that order is confirmed
-    publish_event("order_confirmed", {"orderId": order_id})
+    publish_event("order_confirmed", {"order_id": order_id})
 
 # --- Compensation Handlers (Fault Tolerance) ---
 def process_payment_failed(db: SessionType, event_data: dict):
-    order_id = event_data["orderId"]
+    order_id = event_data["order_id"]
     crud.update_order_status(db, order_id, OrderStatusEnum.FAILED)
 
 def process_inventory_reservation_failed(db: SessionType, event_data: dict):
-    order_id = event_data["orderId"]
+    order_id = event_data["order_id"]
     crud.update_order_status(db, order_id, OrderStatusEnum.FAILED)
     # Compensation: request a payment refund
-    publish_event("refund_payment_request", {"orderId": order_id})
+    publish_event("refund_payment", {"order_id": order_id})
 
 # Mapping topics to the functions that handle them
 TOPIC_HANDLERS = {
@@ -87,16 +87,23 @@ def consume_events():
     try:
         while True:
             msg = consumer.poll(timeout=1.0)
+
             if msg is None:
                 continue
             if msg.error():
                 # This handles transport-level errors, not application errors
                 logger.error(f"Kafka consumer error: {msg.error()}")
                 continue
+
+            raw_value = msg.value()
+            if raw_value is None:
+                logger.warning(f"Received message with empty value on topic {msg.topic()}")
+                consumer.commit(asynchronous=False)
+                continue
             
             topic = msg.topic()
             try:
-                event_data = json.loads(msg.value().decode('utf-8'))
+                event_data = json.loads(raw_value.decode('utf-8'))
                 logger.info(f"Consumed event from topic '{topic}'")
                 
                 handler = TOPIC_HANDLERS.get(topic)
@@ -123,12 +130,18 @@ def consume_events():
                 
                 # A proper DLQ would have a robust retry count, but for this project,
                 # sending it immediately on first major failure is a sufficient demonstration of the pattern.
+                error_msg = str(e)
                 dlq_topic = f"{topic}_dlq"
                 logger.info(f"Sending poisonous message to DLQ topic: {dlq_topic}")
                 try:
                     # Re-use our robust producer to send the failing message to the DLQ
-                    publish_event(dlq_topic, {"original_message": msg.value().decode('utf-8'), "error": str(e)})
-                    EVENTS_SENT_TO_DLQ_TOTAL.labels(topic=dlq_topic).inc()
+                    publish_event(dlq_topic, {
+                        "original_topic": topic,
+                        "original_message": raw_value.decode("utf-8"),
+                        "error": str(e),
+                        "timestamp": msg.timestamp()
+                        })
+                    EVENTS_SENT_TO_DLQ_TOTAL.labels(topic=dlq_topic, reason=error_msg).inc()
                     # CRITICAL: We commit the offset of the original poison message so we don't process it again.
                     consumer.commit(asynchronous=False)
                 except Exception as dlq_e:

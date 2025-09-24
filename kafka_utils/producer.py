@@ -12,7 +12,7 @@ from confluent_kafka import Producer
 import pybreaker
 from prometheus_client import Counter
 
-from .config import settings
+from order_service.config import settings
 
 PRODUCER_EVENTS_TOTAL = Counter(
     "order_service_events_produced_total",

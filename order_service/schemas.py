@@ -1,6 +1,7 @@
 from pydantic import BaseModel
 from typing import List
 from .models import OrderStatusEnum
+from datetime import datetime
 
 # Schemas for Order Items
 class OrderItemBase(BaseModel):
@@ -37,3 +38,12 @@ class Order(OrderBase):
 # Schema for manual status updates (as per assignment)
 class OrderStatusUpdate(BaseModel):
     status: OrderStatusEnum
+
+class OrderStatusHistory(BaseModel):
+    id: int
+    order_id: int
+    status: OrderStatusEnum
+    created_at: datetime
+
+    class Config:
+        orm_mode = True

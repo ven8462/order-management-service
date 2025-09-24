@@ -21,6 +21,9 @@ dist/
 venv/
 .env/
 .venv/
+.env.test
+.env.dev
+.env
 
 
 # --- Dependencies installed locally ---

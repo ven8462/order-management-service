@@ -10,8 +10,11 @@ from fastapi import FastAPI
 # --- NEW: Import the prometheus client ---
 from prometheus_client import make_asgi_app
 
-from . import api, consumer, models
+from . import api, models
+from kafka_utils import consumer
 from .database import engine
+import redis
+import os
 
 # Setup logging
 logging.basicConfig(

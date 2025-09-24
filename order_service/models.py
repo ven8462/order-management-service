@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy import (
-    Column, String, Float, Integer, DateTime, ForeignKey, Enum as SQLAlchemyEnum
+    Column, String, Float, Integer, DateTime, ForeignKey, Enum as SQLAlchemyEnum, Index
 )
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
@@ -37,5 +37,10 @@ class OrderStatusHistory(Base):
     id = Column(Integer, primary_key=True, index=True)
     order_id = Column(Integer, ForeignKey("orders.id"))
     status = Column(SQLAlchemyEnum(OrderStatusEnum), nullable=False)
-    timestamp = Column(DateTime(timezone=True), server_default=func.now())
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     order = relationship("Order", back_populates="status_history")
+
+    # Composite index for performance on (order_id, created_at)
+    __table_args__ = (
+        Index("idx_order_created", "order_id", "created_at"),
+    )

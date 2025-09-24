@@ -9,7 +9,8 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
-from . import crud, producer, schemas
+from . import crud, schemas
+from kafka_utils import producer
 from .database import get_db
 from .models import OrderStatusEnum
 
@@ -110,3 +111,18 @@ def health_check(db: Session = Depends(get_db)):
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
             detail={"status": "error", "database": "disconnected"}
         )
+
+@router.get("/{order_id}/order_history", response_model=List[schemas.OrderStatusHistory])
+def order_history(order_id: int, db: Session = Depends(get_db)):
+    """
+    Track order status/progress by order_id
+    """
+    order_history = crud.get_order_history(db, order_id=order_id)
+
+    if order_history is None or len(order_history) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"No status history found for order {order_id}"
+        )
+
+    return order_history
