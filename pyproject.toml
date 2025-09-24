@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Order management service built with FastAPI, Kafka, and SQLAlchemy."
 authors = ["Your Team <team@example.com>"]
 readme = "README.md"
+packages = [{include = "order_management_service"}]
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.14"
