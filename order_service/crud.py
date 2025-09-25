@@ -2,18 +2,28 @@ from sqlalchemy.orm import Session
 from . import models, schema
 
 # --- Order Functions ---
-def create_order(db: Session, order: schema.OrderCreate) -> models.Order:
+def create_order(
+    db: Session,
+    order: schema.OrderCreate,
+    user_id: int | None = None
+    ) -> models.Order:
+    """
+    Create a new order. If user_id is provided, it overrides order.user_id.
+    """
     total_amount = sum(item.quantity * item.price for item in order.items)
-    db_order = models.Order(user_id=order.user_id, total_amount=total_amount)
+    db_order = models.Order(user_id=user_id or order.user_id, total_amount=total_amount)
     db.add(db_order)
     db.commit()
+
     for item in order.items:
         db_item = models.OrderItem(**item.dict(), order_id=db_order.id)
         db.add(db_item)
+
     db.add(models.OrderStatusHistory(order_id=db_order.id, status=models.OrderStatusEnum.PENDING))
     db.commit()
     db.refresh(db_order)
     return db_order
+
 
 def update_order_status(
     db: Session,
@@ -28,18 +38,22 @@ def update_order_status(
         db.refresh(db_order)
     return db_order
 
+
 def get_order(db: Session, order_id: int):
     return db.query(models.Order).filter(models.Order.id == order_id).first()
+
 
 def get_orders_by_user(db: Session, user_id: int):
     return db.query(models.Order).filter(models.Order.user_id == user_id).all()
 
+
 def get_order_status_history(db: Session, order_id: int):
-    return(
+    return (
         db.query(models.OrderStatusHistory)
         .filter(models.OrderStatusHistory.order_id == order_id)
         .all()
-        )
+    )
+
 
 # --- Cart Functions ---
 def get_or_create_cart_by_user_id(db: Session, user_id: int) -> models.Cart:
@@ -51,11 +65,8 @@ def get_or_create_cart_by_user_id(db: Session, user_id: int) -> models.Cart:
         db.refresh(db_cart)
     return db_cart
 
-def add_item_to_cart(
-    db: Session,
-     user_id: int,
-     item: schema.OrderItemBase
-     ) -> models.Cart:
+
+def add_item_to_cart(db: Session, user_id: int, item: schema.OrderItemBase) -> models.Cart:
     db_cart = get_or_create_cart_by_user_id(db, user_id)
     db_item = models.CartItem(**item.dict(), cart_id=db_cart.id)
     db.add(db_item)
@@ -63,6 +74,7 @@ def add_item_to_cart(
     db.refresh(db_cart)
     db_cart.total_amount = sum(i.price * i.quantity for i in db_cart.items)
     return db_cart
+
 
 def get_cart_with_total(db: Session, user_id: int):
     db_cart = db.query(models.Cart).filter(models.Cart.user_id == user_id).first()
