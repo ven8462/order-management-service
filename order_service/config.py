@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     REDIS_HOST: str
     REDIS_PORT: int
     INVENTORY_SERVICE_URL: str
+    SECRET_KEY: str
+    PAYMENT_SERVICE_BASE_URL: str
 
     class Config:
         env_file = ".env"

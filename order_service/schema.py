@@ -1,5 +1,4 @@
 from pydantic import BaseModel
-
 from .models import OrderStatusEnum
 
 
@@ -22,15 +21,12 @@ class OrderItem(OrderItemBase):
 
 
 # --- Order Schemas ---
-class OrderBase(BaseModel):
-    user_id: int
-
-
-class OrderCreate(OrderBase):
+class OrderCreate(BaseModel):
     items: list[OrderItemCreate]
+    shipping_address: str
 
 
-class Order(OrderBase):
+class Order(BaseModel):
     id: int
     status: OrderStatusEnum
     total_amount: float
