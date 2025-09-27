@@ -9,27 +9,10 @@ packages = [{include = "order_service"}]
 [tool.poetry.dependencies]
 python = ">=3.12,<3.14"
 
-
-# Core Application Stack
-fastapi = ">=0.110.0"
-uvicorn = {extras = ["standard"], version = ">=0.23.2"}
-sqlalchemy = ">=2.0.21"
-psycopg2-binary = ">=2.9.7"
-
-# Asynchronous Communication
-confluent-kafka = ">=2.2.0"
-
-# Production Readiness & Monitoring
-pydantic-settings = ">=2.0.0"
-pybreaker = ">=0.6.0"
-prometheus-client = ">=0.17.1"
-httpx = ">=0.27.0"  # MOVED HERE: This is a main application dependency
-
 [tool.poetry.group.dev.dependencies]
 # Code Quality & Linting
 ruff = "^0.9.0"
 pre-commit = "^3.7.1"
-
 
 # Testing Framework & Plugins
 pytest = "^8.0.0"
@@ -62,4 +45,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
-asyncio_default_fixture_loop_scope = "session"
+
