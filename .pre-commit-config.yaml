@@ -12,7 +12,7 @@ repos:
         name: poetry-install
         entry: poetry
         language: system
-        args: ["install"]
+        args: ["install", "--no-root"]
         pass_filenames: false
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
@@ -25,4 +25,3 @@ repos:
           - --fix
           - --unsafe-fixes
           - --select=ALL
-
