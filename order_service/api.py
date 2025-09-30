@@ -9,8 +9,8 @@ from . import crud, inventory_client, schema
 from .database import get_db
 from .inventory_client import InventoryServiceError
 from .models import OrderStatusEnum
+from .payment_client import PaymentServiceError, create_payment
 from .user_management_client import get_current_user
-from .payment_client import create_payment, PaymentServiceError
 
 logger = logging.getLogger(__name__)
 
@@ -27,18 +27,18 @@ order_router = APIRouter(prefix="/orders", tags=["Order Management"])
     Update order status based on payment outcome (paid, failed)
 """
 
+
 @order_router.post("/", response_model=schema.Order, status_code=status.HTTP_201_CREATED)
 def create_order(
     order_create: schema.OrderCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: dict = Depends(get_current_user),  # noqa: B008
+    current_user: Annotated[dict, Depends(get_current_user)],
 ) -> schema.Order:
     user_id = current_user["user_id"]
     items_payload = [
         {"product_id": item.product_id, "quantity": item.quantity, "price": item.price}
         for item in order_create.items
     ]
-
 
     try:
         # Reserve inventory
@@ -51,46 +51,40 @@ def create_order(
             order_id=db_order.id,
             amount=db_order.total_amount,
             items=items_payload,
-            shipping_address=order_create.shipping_address
+            shipping_address=order_create.shipping_address,
         )
-
-        status = payment_result.get("status", "PAYMENT_PROCESSING").upper()
-
-        if status == "SUCCEEDED":
-            db_order = crud.update_order_status(db, db_order.id, OrderStatusEnum.CONFIRMED)
-        elif status == "FAILED":
-            db_order = crud.update_order_status(
-                db,
-                db_order.id,
-                OrderStatusEnum.FAILED
-                )
-        else:
-            db_order = crud.update_order_status(
-                db,
-                db_order.id,
-                OrderStatusEnum.PAYMENT_PROCESSING
-                )
-
-        return db_order
-
     except inventory_client.InventoryServiceError as e:
         logger.exception("Failed to reserve inventory for order: %s", e)
         raise HTTPException(status_code=400, detail=f"Inventory reservation failed: {e}") from e
 
     except PaymentServiceError as e:
         logger.exception("Payment failed for order: %s", e)
-        if 'db_order' in locals():
+        if "db_order" in locals():
             crud.update_order_status(db, db_order.id, OrderStatusEnum.FAILED)
         raise HTTPException(status_code=402, detail=f"Payment failed: {e}") from e
 
     except Exception as e:
         logger.exception("Failed to create order: %s", e)
-        if 'db_order' in locals():
+        if "db_order" in locals():
             crud.update_order_status(db, db_order.id, OrderStatusEnum.FAILED)
         raise HTTPException(
             status_code=503,
-            detail="Service is currently unavailable to process new orders."
+            detail="Service is currently unavailable to process new orders.",
         ) from e
+    else:
+        status = payment_result.get("status", "PAYMENT_PROCESSING").upper()
+
+        if status == "SUCCEEDED":
+            db_order = crud.update_order_status(db, db_order.id, OrderStatusEnum.CONFIRMED)
+        elif status == "FAILED":
+            db_order = crud.update_order_status(db, db_order.id, OrderStatusEnum.FAILED)
+        else:
+            db_order = crud.update_order_status(
+                db,
+                db_order.id,
+                OrderStatusEnum.PAYMENT_PROCESSING,
+            )
+        return db_order
 
 
 @order_router.get("/", response_model=list[schema.Order])

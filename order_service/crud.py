@@ -1,15 +1,15 @@
 from sqlalchemy.orm import Session
+
 from . import models, schema
+
 
 # --- Order Functions ---
 def create_order(
     db: Session,
     order: schema.OrderCreate,
-    user_id: int | None = None
-    ) -> models.Order:
-    """
-    Create a new order. If user_id is provided, it overrides order.user_id.
-    """
+    user_id: int | None = None,
+) -> models.Order:
+    """Create a new order. If user_id is provided, it overrides order.user_id."""
     total_amount = sum(item.quantity * item.price for item in order.items)
     db_order = models.Order(user_id=user_id or order.user_id, total_amount=total_amount)
     db.add(db_order)
@@ -28,8 +28,8 @@ def create_order(
 def update_order_status(
     db: Session,
     order_id: int,
-    status: schema.OrderStatusEnum
-    ) -> models.Order:
+    status: schema.OrderStatusEnum,
+) -> models.Order:
     db_order = db.query(models.Order).filter(models.Order.id == order_id).first()
     if db_order:
         db_order.status = status
