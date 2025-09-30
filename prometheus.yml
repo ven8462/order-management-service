@@ -1,0 +1,9 @@
+# The configuration file for our Prometheus monitoring server
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'order-service'
+    static_configs:
+      - targets: ['order-service-app:8000']

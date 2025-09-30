@@ -7,6 +7,7 @@ class Settings(BaseSettings):
     POSTGRES_USER: str
     POSTGRES_PASSWORD: str
     POSTGRES_DB: str
+    AUTH_SERVICE_URL: str
     DATABASE_URL: str
     KAFKA_BOOTSTRAP_SERVERS: str
     REDIS_HOST: str
