@@ -1,3 +1,5 @@
+from typing import Annotated
+
 import httpx
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -13,7 +15,7 @@ class AuthenticatedUser(BaseModel):
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    credentials: Annotated[HTTPAuthorizationCredentials, Depends(bearer_scheme)],
 ) -> AuthenticatedUser:
     settings = get_settings()
     token = credentials.credentials
