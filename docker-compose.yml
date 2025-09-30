@@ -1,11 +1,9 @@
-# File: docker-compose.yml
-
-version: "3.9"
-
 services:
-  # The PostgreSQL Database (no changes here)
   postgres:
     image: postgres:14-alpine
+    container_name: order-db-postgres
+    networks:
+      - ecommerce-network
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -20,33 +18,78 @@ services:
       timeout: 5s
       retries: 5
 
-  # Zookeeper (no changes here)
+  redis:
+    image: redis:7-alpine
+    container_name: order-redis
+    networks:
+      - ecommerce-network
+    ports:
+      - "6379:6379"
+
   zookeeper:
     image: confluentinc/cp-zookeeper:7.0.1
+    container_name: order-zookeeper
+    networks:
+      - ecommerce-network
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
 
-  # The Kafka Message Broker (no changes here)
   kafka:
     image: confluentinc/cp-kafka:7.0.1
-    depends_on:
-      - zookeeper
+    container_name: order-kafka
+    networks:
+      - ecommerce-network
     ports:
       - "9092:9092"
+    depends_on:
+      - zookeeper
     environment:
       KAFKA_BROKER_ID: 1
       KAFKA_ZOOKEEPER_CONNECT: 'zookeeper:2181'
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
 
-  # Your Order Management Service --- THIS SECTION IS CORRECTED ---
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: order-kafka-ui
+    networks:
+      - ecommerce-network
+    ports:
+      - "8081:8080"
+    depends_on:
+      - kafka
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local-dev
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:9092
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: order-prometheus
+    networks:
+      - ecommerce-network
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: order-grafana
+    networks:
+      - ecommerce-network
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
   order_service:
+    container_name: order-service-app
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: order_service
-    image: order-management-service-dev
+    networks:
+      - ecommerce-network
     ports:
       - "8000:8000"
     volumes:
@@ -54,10 +97,13 @@ services:
     env_file:
       - .env
     depends_on:
-      postgres:
-        condition: service_healthy 
-      kafka:
-        condition: service_started 
+      postgres: { condition: service_healthy }
+      kafka: { condition: service_started }
+      redis: { condition: service_started }
+
+networks:
+  ecommerce-network:
+    driver: bridge
 
 volumes:
   postgres_db_data:
