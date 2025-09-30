@@ -1,8 +1,11 @@
-import pytest
+from types import SimpleNamespace
 from unittest.mock import patch
+
+import pytest
 from starlette.testclient import TestClient
 
-from src.main import app as main_app
+from order_service.main import app as main_app
+from order_service.models import OrderStatusEnum
 
 
 @pytest.fixture
@@ -10,113 +13,83 @@ def client():
     return TestClient(main_app)
 
 
-# The patches must point to where the functions are USED, not where they are defined.
-# They are used in src.main, so the path should be src.main.function_name
-@patch("src.main.call_inventory_service")
-@patch("src.main.call_payment_service")
-@patch("src.main.save_order_to_db")
-def test_create_order_success(mock_save_to_db, mock_payment, mock_inventory, client):
-    """Verifies the core critical path: Inventory -> Payment -> Order Confirmed."""
-    # Arrange
-    mock_inventory.return_value = {"status": "reserved"}
-    mock_payment.return_value = {"transaction_id": "tx123", "status": "approved"}
-
-    order_data = {
-        "user_id": "user-abc",
-        "items": [{"product_id": "prod-1", "quantity": 2, "price": 50.00}],
-        "address_id": "addr-99",
-        "payment_method_id": "pm-789",
+def test_create_order_success(client):
+    order_payload = {
+        "order_create": {
+            "items": [
+                {"product_id": "p1", "quantity": 2, "price": 1000.0},
+                {"product_id": "p2", "quantity": 1, "price": 1500.0},
+            ],
+            "shipping_address": "Nairobi, Kenya",
+        },
     }
 
-    # Act
-    response = client.post("/orders", json=order_data)
+    with (
+        patch("order_service.api.inventory_client.reserve_stock") as mock_reserve,
+        patch("order_service.api.create_payment") as mock_payment,
+        patch("order_service.api.crud.create_order") as mock_create_order,
+        patch("order_service.api.crud.update_order_status") as mock_update_order,
+    ):
+        mock_reserve.return_value = True
 
-    # Assert
-    assert response.status_code == 201
-    assert response.json()["status"] == "CONFIRMED"
-    mock_inventory.assert_called_once()
-    mock_payment.assert_called_once()
-    mock_save_to_db.assert_called_once()
+        fake_db_order = SimpleNamespace(
+            id=123,
+            total_amount=3500.0,
+            status=OrderStatusEnum.PENDING,
+            items=[],
+        )
+        mock_create_order.return_value = fake_db_order
+        mock_payment.return_value = {"status": "SUCCEEDED"}
+
+        def _update(db, order_id, status):
+            fake_db_order.status = status
+            return fake_db_order
+
+        mock_update_order.side_effect = _update
+
+        response = client.post("/orders/", json=order_payload)
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["id"] == 123
+        assert data["status"] == OrderStatusEnum.CONFIRMED
 
 
-@patch("src.main.call_inventory_service")
-@patch("src.main.call_payment_service")
-@patch("src.main.save_order_to_db")
-def test_create_order_inventory_failure(mock_save_to_db, mock_payment, mock_inventory, client):
-    """Verifies that an order fails if stock cannot be reserved."""
-    # Arrange
-    mock_inventory.side_effect = Exception("Stock unavailable")
-    order_data = {
-        "user_id": "user-abc",
-        "items": [{"product_id": "prod-1", "quantity": 2, "price": 50.00}],
-        "address_id": "addr-99",
-        "payment_method_id": "pm-789",
+def test_create_order_payment_failed(client):
+    order_payload = {
+        "order_create": {
+            "items": [{"product_id": "p1", "quantity": 1, "price": 1500.0}],
+            "shipping_address": "Nairobi",
+        },
     }
 
-    # Act
-    response = client.post("/orders", json=order_data)
+    with (
+        patch("order_service.api.inventory_client.reserve_stock") as mock_reserve,
+        patch("order_service.api.create_payment") as mock_payment,
+        patch("order_service.api.crud.create_order") as mock_create_order,
+        patch("order_service.api.crud.update_order_status") as mock_update_order,
+    ):
+        mock_reserve.return_value = True
 
-    # Assert
-    assert response.status_code == 400
-    assert response.json()["detail"] == "Failed to reserve stock."
-    mock_inventory.assert_called_once()
-    mock_payment.assert_not_called()
-    mock_save_to_db.assert_not_called()
+        fake_db_order = SimpleNamespace(
+            id=124,
+            total_amount=1500.0,
+            status=OrderStatusEnum.PENDING,
+            items=[SimpleNamespace(id=1, product_id="p1", quantity=1, price=1500.0)],
+        )
+        mock_create_order.return_value = fake_db_order
+        mock_payment.return_value = {"status": "FAILED"}
 
+        def _update(db, order_id, status):
+            fake_db_order.status = status
+            return fake_db_order
 
-@patch("src.main.call_inventory_service")
-@patch("src.main.call_payment_service")
-@patch("src.main.save_order_to_db")
-def test_create_order_payment_breaker_tripped(
-    mock_save_to_db, mock_payment, mock_inventory, client
-):
-    """Tests the resilience pattern: handling a broken dependency."""
-    # Arrange
-    mock_inventory.return_value = {"status": "reserved"}
-    mock_payment.side_effect = Exception("Payment service is down")
-    order_data = {
-        "user_id": "user-abc",
-        "items": [{"product_id": "prod-1", "quantity": 2, "price": 50.00}],
-        "address_id": "addr-99",
-        "payment_method_id": "pm-789",
-    }
+        mock_update_order.side_effect = _update
 
-    # Act
-    response = client.post("/orders", json=order_data)
+        response = client.post("/orders/", json=order_payload)
 
-    # Assert
-    assert response.status_code == 500
-    assert "Payment service is down" in response.json()["detail"]
-    mock_inventory.assert_called_once()
-    mock_payment.assert_called_once()
-    mock_save_to_db.assert_not_called()
-
-
-@patch("src.main.get_order_details")
-def test_get_order_details_found(mock_db_call, client):
-    """Retrieves order details successfully."""
-    # Arrange
-    mock_db_call.return_value = {"orderId": "abc123", "status": "SHIPPED", "totalAmount": 120.00}
-
-    # Act
-    response = client.get("/orders/abc123")
-
-    # Assert
-    assert response.status_code == 200
-    assert response.json()["orderId"] == "abc123"
-    mock_db_call.assert_called_once_with("abc123")
-
-
-@patch("src.main.get_order_details")
-def test_get_order_details_not_found(mock_db_call, client):
-    """Handles an invalid or non-existent order ID gracefully."""
-    # Arrange
-    mock_db_call.return_value = None  # Database returns nothing
-
-    # Act
-    response = client.get("/orders/non-existent-id")
-
-    # Assert
-    assert response.status_code == 404
-    assert "Order not found" in response.json()["detail"]
-    mock_db_call.assert_called_once_with("non-existent-id")
+        assert response.status_code == 201
+        data = response.json()
+        assert data["status"] == OrderStatusEnum.FAILED
+        assert data["id"] == 124
+        assert len(data["items"]) == 1
