@@ -10,7 +10,6 @@ from order_service.main import app
 from order_service.user_management_client import get_current_user
 
 
-
 @pytest.fixture(scope="session", autouse=True)
 def test_env_vars():
     os.environ.setdefault("POSTGRES_USER", "test")

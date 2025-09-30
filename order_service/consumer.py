@@ -6,8 +6,9 @@ from confluent_kafka import Consumer
 from prometheus_client import Counter
 from sqlalchemy.orm.session import Session as SessionType
 
-from . import crud
 from order_service.config import get_settings
+
+from . import crud
 from .database import SessionLocal
 from .models import OrderStatusEnum
 from .producer import publish_event
