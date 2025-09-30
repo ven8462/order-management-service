@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environments
+venv/
+.env/
+.venv/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+
+
+# --- Virtual environment directories ---
+venv/
+.env/
+.venv/
+
+
+# --- Dependencies installed locally ---
+# (sometimes show up if you accidentally copied env libs)
+lib/
+Lib/
+site-packages/
+
+
+# --- IDE/editor config ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- OS-specific junk ---
+.DS_Store
+Thumbs.db
