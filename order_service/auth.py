@@ -1,5 +1,5 @@
 import httpx
-from fastapi import HTTPException, Security, status
+from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
@@ -13,7 +13,7 @@ class AuthenticatedUser(BaseModel):
 
 
 def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Security(bearer_scheme),
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
 ) -> AuthenticatedUser:
     settings = get_settings()
     token = credentials.credentials
