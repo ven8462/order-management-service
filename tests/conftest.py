@@ -5,9 +5,10 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
+from order_service import api
+from order_service.auth import AuthenticatedUser
 from order_service.database import get_db
 from order_service.main import app
-from order_service.user_management_client import get_current_user
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -22,6 +23,7 @@ def test_env_vars():
     os.environ.setdefault("INVENTORY_SERVICE_URL", "http://fake-inventory")
     os.environ.setdefault("SECRET_KEY", "testsecret")
     os.environ.setdefault("PAYMENT_SERVICE_BASE_URL", "http://fake-payment")
+    os.environ.setdefault("AUTH_SERVICE_URL", "http://fake-auth")
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -37,11 +39,11 @@ def override_get_db() -> Iterator[None]:
 @pytest.fixture(autouse=True)
 def override_current_user():
     def _fake_user():
-        return {"user_id": "test-user"}
+        return AuthenticatedUser(id="test-user")  # use your Pydantic model, not dict
 
-    app.dependency_overrides[get_current_user] = _fake_user
+    app.dependency_overrides[api.get_current_user] = _fake_user
     yield
-    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(api.get_current_user, None)
 
 
 @pytest.fixture

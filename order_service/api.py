@@ -6,35 +6,24 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from . import crud, inventory_client, schema
+from .auth import AuthenticatedUser, get_current_user  # 👈 use new auth
 from .database import get_db
 from .inventory_client import InventoryServiceError
 from .models import OrderStatusEnum
 from .payment_client import PaymentServiceError, create_payment
-from .user_management_client import get_current_user
 
 logger = logging.getLogger(__name__)
 
 order_router = APIRouter(prefix="/orders", tags=["Order Management"])
-
-"""
-    To create an oder
-    validate user exists -> Call user management service
-    validate items exist -> Call inventory management service
-    Reserve inventory -> Inventory management service
-    Create order with status pending
-
-    Call payment service to charge customer
-    Update order status based on payment outcome (paid, failed)
-"""
 
 
 @order_router.post("/", response_model=schema.Order, status_code=status.HTTP_201_CREATED)
 def create_order(
     order_create: schema.OrderCreate,
     db: Annotated[Session, Depends(get_db)],
-    current_user: Annotated[dict, Depends(get_current_user)],
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> schema.Order:
-    user_id = current_user["user_id"]
+    user_id = int(current_user.id)
     items_payload = [
         {"product_id": item.product_id, "quantity": item.quantity, "price": item.price}
         for item in order_create.items
@@ -89,16 +78,20 @@ def create_order(
 
 @order_router.get("/", response_model=list[schema.Order])
 def retrieve_orders_by_user(
-    user_id: int,
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> list[schema.Order]:
-    return crud.get_orders_by_user(db, user_id=user_id)
+    return crud.get_orders_by_user(db, user_id=int(current_user.id))
 
 
 @order_router.get("/{order_id}", response_model=schema.Order)
-def retrieve_order(order_id: int, db: Annotated[Session, Depends(get_db)]) -> schema.Order:
+def retrieve_order(
+    order_id: int,
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> schema.Order:
     db_order = crud.get_order(db, order_id=order_id)
-    if db_order is None:
+    if db_order is None or db_order.user_id != int(current_user.id):
         raise HTTPException(status_code=404, detail="Order not found")
     return db_order
 
@@ -119,15 +112,16 @@ def update_order_status_manually(
     return crud.update_order_status(db, order_id=order_id, status=status_update.status)
 
 
-@order_router.get("/{order_id}/tracking", response_model=list[schema.OrderStatusHistory])
+@order_router.get("/{order_id}/track", response_model=list[schema.OrderStatusHistory])
 def get_order_tracking_history(
     order_id: int,
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> list[schema.OrderStatusHistory]:
     history = crud.get_order_status_history(db, order_id=order_id)
     if not history:
         db_order = crud.get_order(db, order_id=order_id)
-        if db_order is None:
+        if db_order is None or db_order.user_id != int(current_user.id):
             raise HTTPException(status_code=404, detail="Order not found")
     return history
 
@@ -139,13 +133,17 @@ cart_router = APIRouter(prefix="/cart", tags=["Shopping Cart"])
 def add_to_cart(
     item_create: schema.CartItemCreate,
     db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
 ) -> schema.Cart:
-    return crud.add_item_to_cart(db=db, user_id=item_create.user_id, item=item_create)
+    return crud.add_item_to_cart(db=db, user_id=int(current_user.id), item=item_create)
 
 
-@cart_router.get("/{user_id}", response_model=schema.Cart)
-def get_user_cart(user_id: int, db: Annotated[Session, Depends(get_db)]) -> schema.Cart:
-    cart = crud.get_cart_with_total(db=db, user_id=user_id)
+@cart_router.get("/", response_model=schema.Cart)
+def get_user_cart(
+    db: Annotated[Session, Depends(get_db)],
+    current_user: Annotated[AuthenticatedUser, Depends(get_current_user)],
+) -> schema.Cart:
+    cart = crud.get_cart_with_total(db=db, user_id=int(current_user.id))
     if not cart:
         raise HTTPException(status_code=404, detail="Cart not found for this user.")
     return cart
