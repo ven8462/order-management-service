@@ -7,10 +7,12 @@ from prometheus_client import Counter
 from sqlalchemy.orm.session import Session as SessionType
 
 from . import crud
-from .config import settings
+from order_service.config import get_settings
 from .database import SessionLocal
 from .models import OrderStatusEnum
 from .producer import publish_event
+
+settings = get_settings()
 
 EVENTS_CONSUMED_TOTAL = Counter(
     "order_service_events_consumed_total",
